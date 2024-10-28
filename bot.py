@@ -1,21 +1,23 @@
 import asyncio
 import os
 import discord
+from discord.ext import commands
 import requests
 
 # Ensure your environment variables are set correctly on Replit
 TOKEN = os.getenv('DISCORD_TOKEN')
-CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
-
-if not TOKEN or not CHANNEL_ID:
-    print("Environment variables DISCORD_TOKEN and CHANNEL_ID must be set.")
+if not TOKEN:
+    print("Environment variable DISCORD_TOKEN must be set.")
     exit(1)
 
 BOORU_API_URL = "https://e621.net/posts.json"
 TAG = "femboy"
 
 intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+# Dictionary to store channel IDs for different servers
+channel_ids = {}
 
 last_post_id = None
 
@@ -46,26 +48,34 @@ async def download_file(url):
         print(f"Error downloading file: {e}")
         return None
 
-@client.event
+@bot.event
 async def on_ready():
-    print(f'Logged in as {client.user}!')
+    print(f'Logged in as {bot.user}!')
     await post_updates()
 
+@bot.command()
+async def setchannel(ctx, channel: discord.TextChannel):
+    guild_id = ctx.guild.id
+    channel_ids[guild_id] = channel.id
+    await ctx.send(f'Channel for updates set to {channel.mention}')
+
 async def post_updates():
-    await client.wait_until_ready()
-    channel = client.get_channel(CHANNEL_ID)
-    while not client.is_closed():
-        new_post = await fetch_new_booru_post()
-        if new_post:
-            post_url = f"https://e621.net/posts/{new_post['id']}"
-            image_url = new_post.get("file", {}).get("url")
-            if image_url:
-                file_name = await download_file(image_url)
-                if file_name:
-                    await channel.send(content=f"New post with tag '{TAG}': {post_url}", file=discord.File(file_name))
-                    os.remove(file_name)
-            else:
-                await channel.send(content=f"New post with tag '{TAG}': {post_url} (No image available)")
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        for guild_id, channel_id in channel_ids.items():
+            channel = bot.get_channel(channel_id)
+            if channel:
+                new_post = await fetch_new_booru_post()
+                if new_post:
+                    post_url = f"https://e621.net/posts/{new_post['id']}"
+                    image_url = new_post.get("file", {}).get("url")
+                    if image_url:
+                        file_name = await download_file(image_url)
+                        if file_name:
+                            await channel.send(content=f"New post with tag '{TAG}': {post_url}", file=discord.File(file_name))
+                            os.remove(file_name)
+                    else:
+                        await channel.send(content=f"New post with tag '{TAG}': {post_url} (No image available)")
         await asyncio.sleep(300)
-    
-client.run(TOKEN)
+
+bot.run(TOKEN)
