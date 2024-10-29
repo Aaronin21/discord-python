@@ -57,6 +57,7 @@ async def on_ready():
 async def setchannel(ctx, channel: discord.TextChannel):
     guild_id = ctx.guild.id
     channel_ids[guild_id] = channel.id
+    print(f"Set channel for guild {guild_id} to {channel.id}")
     await ctx.send(f'Channel for updates set to {channel.mention}')
 
 async def post_updates():
@@ -65,6 +66,7 @@ async def post_updates():
         for guild_id, channel_id in channel_ids.items():
             channel = bot.get_channel(channel_id)
             if channel:
+                print(f"Posting to channel {channel.id} in guild {guild_id}")
                 new_post = await fetch_new_booru_post()
                 if new_post:
                     post_url = f"https://e621.net/posts/{new_post['id']}"
